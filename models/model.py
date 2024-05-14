@@ -204,6 +204,88 @@ class MaskCon(nn.Module):
 
         return loss
 
+    def forward_rd(self, im_k, im_q, coarse_label, args):
+        with torch.no_grad():  # no gradient to keys
+            self._momentum_update_key_encoder()
+        cls_q, q = self.encoder_q(im_q)  # queries:
+        q = nn.functional.normalize(q, dim=1)  # already normalized
+
+        # compute key features
+        with torch.no_grad():  # no gradient to keys
+            # shuffle for making use of BN
+            im_k_, idx_unshufflek = self._batch_shuffle_single_gpu(im_k)
+            _, k = self.encoder_k(im_k_)  # keys: NxC
+            k = nn.functional.normalize(k, dim=1)  # already normalized
+            # undo shuffle
+            k = self._batch_unshuffle_single_gpu(k, idx_unshufflek)
+
+            """
+            # soft-labels - future work
+            coarse_z = torch.ones(len(q), self.K).cuda()
+            new_label = coarse_label.reshape(-1, 1).repeat(1, self.K)
+            memory_labels = self.coarse_labels.reshape(1, -1).repeat(len(q), 1)
+            coarse_z = coarse_z * (new_label == memory_labels)
+            logits_pd = torch.einsum('nc,ck->nk', [k, self.queue.clone().detach()])
+            logits_pd /= self.T2
+            logits_pd = logits_pd * coarse_z  # mask out non-same-coarse class samples
+            logits_pd = logits_pd - logits_pd.max(dim=1, keepdim=True)[0]
+            pseudo_soft_z = logits_pd.exp() * coarse_z
+            pseudo_sum = torch.sum(pseudo_soft_z, dim=1, keepdim=True)
+            maskcon_z = torch.zeros(len(q), self.K + 1).cuda()
+            maskcon_z[:, 0] = 1
+            tmp = pseudo_soft_z / pseudo_sum
+            # rescale by maximum
+            tmp = tmp / tmp.max(dim=1, keepdim=True)[0]
+            maskcon_z[:, 1:] = tmp
+            # generate weighted inter-sample relations
+            maskcon_z = maskcon_z / maskcon_z.sum(dim=1, keepdim=True)
+
+            # self-supervised inter-sample relations
+            self_z = torch.zeros(len(q), self.K + 1).cuda()
+            self_z[:, 0] = 1.0
+
+            labels = args.w * maskcon_z + (1 - args.w) * self_z
+            """
+
+        l_neg = torch.einsum('nc,ck->nk', [q, self.queue.clone().detach()])
+        l_pos = torch.einsum('nc,nc->n', [q, k]).unsqueeze(-1)
+
+        align_loss = 2 - 2 * l_pos.mean()
+
+        sq_dists = (2 - 2 * l_neg)
+
+        mask = (coarse_label.view(-1, 1) == self.coarse_labels.view(1, -1))
+
+        all_sq_dists = torch.cat([sq_dists, torch.norm(q[:, None] - q, dim=2, p=2).pow(2)], 1)
+        all_coarse_labels = torch.cat([self.coarse_labels, coarse_label])
+        mask = (coarse_label.view(-1, 1) == all_coarse_labels.view(1, -1))
+        sqdists_2_average = all_sq_dists[mask].flatten()
+        loss_unif = sqdists_2_average.mul(-1 / self.T1).exp().mean().log()
+
+        loss = (align_loss / self.T1) + loss_unif
+
+        self._dequeue_and_enqueue(k, coarse_label)
+
+        """
+            l_neg = torch.einsum('nc,ck->nk', [q, self.queue.clone().detach()])
+            l_pos = torch.einsum('nc,nc->n', [q, k]).unsqueeze(-1)
+
+            align_loss = 2- 2 * l_pos.mean()
+
+            sq_dists = (2 - 2 * l_pos).flatten()
+            sq_dists = torch.cat([sq_dists, torch.pdist(q, p=2).pow(2)])
+
+            loss_unif = sq_dists.mul(-1/self.T1).exp().mean().log()
+
+
+            loss = (align_loss / self.T1) + loss_unif 
+
+            # inside vs outside?
+            self._dequeue_and_enqueue(k, coarse_label)
+        """
+
+        return loss
+
     def forward_explicit(self, im_k, im_q, coarse_label, args):
         with torch.no_grad():  # no gradient to keys
             self._momentum_update_key_encoder()
