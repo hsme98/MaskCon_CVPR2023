@@ -16,6 +16,7 @@ from utils import *
 import pdb
 import copy
 import math
+import pickle
 
 """### Set arguments"""
 
@@ -320,9 +321,9 @@ def main_proc(args, model, train_loader, test_loader):
             stats_str_2 = f'2-Epoch [{epoch}/{args.epochs}]: ' + ', '.join(
                 [f'R@{k}: {ret:.4f}' for k, ret in zip(K, retrv_2)])
 
-            results["retr0"][epoch] = {k: ret for zip(K, retrv_0)}
-            results["retr1"][epoch] = {k: ret for zip(K, retrv_1)}
-            results["retr2"][epoch] = {k: ret for zip(K, retrv_2)}
+            results["retr0"][epoch] = {k: ret for k, ret in zip(K, retrv_0)}
+            results["retr1"][epoch] = {k: ret for k, ret in zip(K, retrv_1)}
+            results["retr2"][epoch] = {k: ret for k, ret in zip(K, retrv_2)}
             print(stats_str_0)
             print(stats_str_1)
             print(stats_str_2)
@@ -406,7 +407,7 @@ if __name__ == "__main__":
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, pin_memory=True)
 
     # create trainer
-    trainer = MaskConNew(num_classes_coarse=args.num_classes, dim=args.dim, K=args.K, m=args.m, T1=args.t0,
+    trainer = MaskCon(num_classes_coarse=args.num_classes, dim=args.dim, K=args.K, m=args.m, T1=args.t0,
                          arch=args.arch, size=args.size, T2=args.t, mode=args.mode).cuda()
 
     args.results_dir = f'arch_[{args.arch}]_data[{args.dataset}]_epochs[{args.epochs}]_memorysize[{args.K}]_mode[{args.mode}]_contrastive_temperature[{args.t0}]_temperature_maskcon[{args.t}]_weight[{args.w}]]'
@@ -421,4 +422,4 @@ if __name__ == "__main__":
     with open(os.path.join(args.wandb_id, args.results_dir, "model.pth"), "wb") as f:
         torch.save(model, f)
     with open(os.path.join(args.wandb_id, args.results_dir, "results.pickle"), "wb") as f:
-        torch.save(res, f)
+        pickle.dump(res, f)
