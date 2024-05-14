@@ -33,7 +33,7 @@ parser.add_argument('--arch', default='resnet18')
 parser.add_argument('--dim', default=256, type=int, help='feature dimension')
 parser.add_argument('--K', default=8192, type=int, help='queue size; number of negative keys')
 parser.add_argument('--m', default=0.99, type=float, help='moco momentum of updating key encoder')
-parser.add_argument('--t0', default=0.1, type=float, help='softmax temperature for training')
+parser.add_argument('--t0', default=0.1, type=float, help='softmax temperature for training') # used by rd
 
 # train configs:
 parser.add_argument('--lr', '--learning-rate', default=0.02, type=float, metavar='LR', help='initial learning rate',
@@ -51,7 +51,7 @@ parser.add_argument('--mode', default='maskcon', type=str, choices=['maskcon', '
 
 # maskcon-specific hyperparameters:
 parser.add_argument('--w', default=0.5, type=float, help='weight of self-invariance')  # not-used if maskcon
-parser.add_argument('--t', default=0.05, type=float, help='softmax temperature weight for soft label')
+parser.add_argument('--t', default=0.05, type=float, help='softmax temperature weight for soft label') 
 
 # logger configs
 parser.add_argument('--wandb_id', type=str, default="cifar100", help='wandb user id')
@@ -335,7 +335,7 @@ def main_proc(args, model, train_loader, test_loader):
     return model, results
 
 if __name__ == "__main__":
-    args = parser.parse_args("")
+    args = parser.parse_args()
     print(args)
 
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
